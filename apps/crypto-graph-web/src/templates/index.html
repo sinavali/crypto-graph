@@ -45,12 +45,33 @@
       </button>
     </div>
 
-    <!-- Presets -->
-    <div class="sample-chips">
-      <span>Presets:</span>
-      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_vitalik }}')">Vitalik (ETH)</a>
-      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_satoshi }}')">Satoshi (BTC)</a>
-      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_cluster }}')">Persona Cluster</a>
+    <!-- Presets & Auth State -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="sample-chips">
+        <span>Presets:</span>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_vitalik }}')">Vitalik (ETH)</a>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_satoshi }}')">Satoshi (BTC)</a>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_cluster }}')">Persona Cluster</a>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_solana }}')">Solana Whale</a>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_tron }}')">Tron USDT</a>
+      </div>
+
+      {% if session %}
+        <div style="display: flex; gap: 8px; align-items: center; border-left: 1px solid var(--border-color); padding-left: 12px;">
+          {% if session.role.value == 'admin' %}
+            <a href="/admin/config" class="toolbar-btn" style="background-color: rgba(168, 85, 247, 0.2); color: var(--accent-purple); text-decoration: none;">⚙ Admin</a>
+          {% endif %}
+          <span style="font-size: 0.8rem; color: var(--text-muted);">{{ session.username }}</span>
+          <form action="/auth/logout" method="POST" style="margin: 0;">
+            <button type="submit" class="toolbar-btn" style="padding: 4px 8px; font-size: 0.75rem; color: var(--accent-red);">Logout</button>
+          </form>
+        </div>
+      {% else %}
+        <div style="display: flex; gap: 8px; border-left: 1px solid var(--border-color); padding-left: 12px;">
+          <a href="/auth/login" class="toolbar-btn" style="text-decoration: none; font-size: 0.8rem;">Sign In</a>
+          <a href="/auth/register" class="toolbar-btn" style="background-color: var(--accent-blue); color: #0b0f19; text-decoration: none; font-size: 0.8rem;">Register</a>
+        </div>
+      {% endif %}
     </div>
   </header>
 
@@ -62,9 +83,23 @@
         <button class="toolbar-btn" onclick="zoomIn()">Zoom +</button>
         <button class="toolbar-btn" onclick="zoomOut()">Zoom -</button>
         <button class="toolbar-btn" onclick="fitGraph()">Fit View</button>
-        <button class="toolbar-btn" onclick="switchLayout('cose')">Force Layout</button>
+        <button class="toolbar-btn" onclick="switchLayout('cose')">Force</button>
         <button class="toolbar-btn" onclick="switchLayout('concentric')">Concentric</button>
+        <button class="toolbar-btn" onclick="switchLayout('circle')">Circle</button>
+        <button class="toolbar-btn" onclick="switchLayout('breadthfirst')">Tree</button>
+        <button class="toolbar-btn" onclick="switchLayout('grid')">Grid</button>
+        
+        <!-- Filter control -->
+        <select id="volume-filter-select" class="toolbar-btn" onchange="filterGraphByVolume(this.value)" style="background: var(--bg-card);">
+          <option value="0">All Volumes</option>
+          <option value="1">&gt; 1 Native</option>
+          <option value="5">&gt; 5 Native</option>
+          <option value="10">&gt; 10 Native</option>
+        </select>
+
         <button class="toolbar-btn" onclick="exportGraph()">Export PNG</button>
+        <button class="toolbar-btn" onclick="exportTransactionsCsv()">Export CSV</button>
+        <button class="toolbar-btn" onclick="exportGraphJson()">Export JSON</button>
       </div>
 
       <div id="cy"></div>
@@ -92,6 +127,13 @@
 
     <!-- Right Sidebar with HTMX Streaming Partial Panels -->
     <div class="sidebar">
+      <!-- Multi-Tenant Workspace & Saved Investigations Panel -->
+      <div id="investigation-container"
+           hx-get="/partials/investigation-panel"
+           hx-trigger="load">
+        <div class="panel-card"><div class="stat-label">Loading workspace...</div></div>
+      </div>
+
       <!-- Address Summary Panel -->
       <div id="address-summary-container" 
            hx-get="/partials/address-summary?address={{ default_address }}" 

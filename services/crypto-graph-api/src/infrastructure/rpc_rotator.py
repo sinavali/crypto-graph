@@ -134,17 +134,19 @@ class EndpointHealth:
         self.consecutive_failures = 0
         self.state = CircuitState.CLOSED
 
-    def record_failure(self):
+    def record_failure(self, threshold: int = 3, cooldown: float = 15.0):
         self.consecutive_failures += 1
         self.last_failure_time = time.time()
-        if self.consecutive_failures >= 3:
+        self.cooldown_seconds = cooldown
+        if self.consecutive_failures >= threshold:
             self.state = CircuitState.OPEN
 
-    def is_available(self) -> bool:
+    def is_available(self, cooldown: Optional[float] = None) -> bool:
         if self.state == CircuitState.CLOSED:
             return True
+        cd = cooldown if cooldown is not None else self.cooldown_seconds
         if self.state == CircuitState.OPEN:
-            if time.time() - self.last_failure_time > self.cooldown_seconds:
+            if time.time() - self.last_failure_time > cd:
                 self.state = CircuitState.HALF_OPEN
                 return True
             return False
@@ -152,43 +154,74 @@ class EndpointHealth:
 
 
 class ResilientRpcRotator(RpcProviderPort):
-    def __init__(self, offline_mode: bool = False, request_timeout: float = 4.0):
-        self.offline_mode = offline_mode
-        self.request_timeout = request_timeout
+    def __init__(self, config_service=None, offline_mode: bool = False, request_timeout: float = 4.0):
+        self.config_service = config_service
+        self._base_offline_mode = offline_mode
+        self._base_request_timeout = request_timeout
         self._pool_indices: Dict[ChainEcosystem, int] = {chain: 0 for chain in FREE_RPC_POOLS}
         self._health_trackers: Dict[str, EndpointHealth] = {}
+
+    @property
+    def is_offline(self) -> bool:
+        if self.config_service:
+            return self.config_service.get_bool("rpc.offline_mode", self._base_offline_mode)
+        return self._base_offline_mode
+
+    @property
+    def current_timeout(self) -> float:
+        if self.config_service:
+            return self.config_service.get_float("rpc.timeout_seconds", self._base_request_timeout)
+        return self._base_request_timeout
+
+    @property
+    def circuit_threshold(self) -> int:
+        if self.config_service:
+            return self.config_service.get_int("rpc.circuit_threshold", 3)
+        return 3
+
+    @property
+    def circuit_cooldown(self) -> float:
+        if self.config_service:
+            return self.config_service.get_float("rpc.circuit_cooldown", 15.0)
+        return 15.0
 
     def _get_health(self, url: str) -> EndpointHealth:
         if url not in self._health_trackers:
             self._health_trackers[url] = EndpointHealth(url)
         return self._health_trackers[url]
 
+    def get_endpoints_for_chain(self, chain: ChainEcosystem) -> List[str]:
+        if self.config_service:
+            all_pools = self.config_service.get_json("rpc.endpoints", {})
+            if chain.value in all_pools and isinstance(all_pools[chain.value], list):
+                return all_pools[chain.value]
+        return FREE_RPC_POOLS.get(chain, [])
+
     def get_next_endpoint(self, chain: ChainEcosystem) -> Optional[str]:
-        endpoints = FREE_RPC_POOLS.get(chain, [])
+        endpoints = self.get_endpoints_for_chain(chain)
         if not endpoints:
             return None
 
-        start_idx = self._pool_indices[chain]
+        start_idx = self._pool_indices.get(chain, 0)
         for offset in range(len(endpoints)):
             idx = (start_idx + offset) % len(endpoints)
             candidate = endpoints[idx]
             health = self._get_health(candidate)
-            if health.is_available():
+            if health.is_available(cooldown=self.circuit_cooldown):
                 self._pool_indices[chain] = (idx + 1) % len(endpoints)
                 return candidate
 
-        # If all tripped, fallback to first endpoint in trial state
         return endpoints[0]
 
     async def fetch_transactions(
         self, address: str, chain: Optional[ChainEcosystem] = None
     ) -> List[DomainTransactionEvent]:
         # In offline/test mode, or if live calls fail, seamlessly fallback to deterministic fixtures
-        if self.offline_mode:
+        if self.is_offline:
             return get_fixture_transactions(address)
 
         target_chain = chain or (ChainEcosystem.BITCOIN if not address.startswith("0x") else ChainEcosystem.ETHEREUM)
-        max_retries = 3
+        max_retries = self.config_service.get_int("rpc.max_retries", 3) if self.config_service else 3
 
         for attempt in range(max_retries):
             endpoint = self.get_next_endpoint(target_chain)
@@ -198,7 +231,7 @@ class ResilientRpcRotator(RpcProviderPort):
             health = self._get_health(endpoint)
             try:
                 # Try lightweight JSON-RPC probe
-                async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                async with httpx.AsyncClient(timeout=self.current_timeout) as client:
                     resp = await client.post(
                         endpoint,
                         json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1},
@@ -208,10 +241,10 @@ class ResilientRpcRotator(RpcProviderPort):
                         # Successfully connected to RPC; merge with fixture transactions for demo data
                         return get_fixture_transactions(address)
                     elif resp.status_code in (429, 502, 503, 504):
-                        health.record_failure()
+                        health.record_failure(threshold=self.circuit_threshold, cooldown=self.circuit_cooldown)
                         continue
             except (httpx.RequestError, asyncio.TimeoutError):
-                health.record_failure()
+                health.record_failure(threshold=self.circuit_threshold, cooldown=self.circuit_cooldown)
                 continue
 
         # Safe resilient fallback: return deterministic domain events

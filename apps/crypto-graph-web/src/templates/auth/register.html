@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>crypto-graph — Create Tenant Account</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body style="display: flex; align-items: center; justify-content: center; height: 100vh;">
+  <div style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 32px; width: 100%; max-width: 440px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div class="brand" style="justify-content: center; margin-bottom: 8px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        <span>crypto-graph</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Create a multi-tenant investigator workspace</p>
+    </div>
+
+    {% if error %}
+      <div style="background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 16px;">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="POST" action="/auth/register">
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Organization / Tenant Name</label>
+        <input type="text" name="tenant_name" class="search-input" required placeholder="e.g. Citadel Research" value="{{ tenant_name or '' }}">
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Username</label>
+        <input type="text" name="username" class="search-input" required placeholder="Choose a username" value="{{ username or '' }}">
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Password (min 6 chars)</label>
+        <input type="password" name="password" class="search-input" required placeholder="••••••••">
+      </div>
+
+      <!-- Built-in Captcha -->
+      <div style="margin-bottom: 18px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Security Verification (Built-in Captcha)</label>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+          <input type="hidden" id="captcha-id-input" name="captcha_id" value="{{ captcha_id }}">
+          <div id="captcha-svg-container" style="flex: 1;">{{ captcha_svg | safe }}</div>
+          <button type="button" onclick="refreshCaptcha()" class="toolbar-btn" style="padding: 10px 12px; cursor: pointer;" title="Refresh Captcha">↻</button>
+        </div>
+        <input type="text" name="captcha_solution" class="search-input" required placeholder="Enter answer or characters above">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">Create Tenant & Account</button>
+    </form>
+
+    <div style="margin-top: 18px; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+      Already have an account? <a href="/auth/login" style="color: var(--accent-blue); text-decoration: none;">Sign In</a>
+    </div>
+  </div>
+
+  <script>
+    async function refreshCaptcha() {
+      try {
+        const res = await fetch("/api/v1/auth/captcha");
+        const data = await res.json();
+        document.getElementById("captcha-id-input").value = data.challenge_id;
+        document.getElementById("captcha-svg-container").innerHTML = data.svg;
+      } catch (e) {
+        console.error("Error refreshing captcha:", e);
+      }
+    }
+  </script>
+</body>
+</html>

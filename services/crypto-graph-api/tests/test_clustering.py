@@ -137,3 +137,32 @@ def test_persona_clustering_co_funding_and_wallet_updates():
     wallet_obj = next(w for w in persona.clustered_wallets if w.address == funded_wallet)
     assert len(wallet_obj.evidences) == 2
     assert wallet_obj.last_seen_utc == datetime(2024, 1, 5, 12, 0, tzinfo=timezone.utc)
+
+
+def test_persona_clustering_utxo_common_spend():
+    engine = PersonaClusteringEngine()
+    satoshi_addr1 = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+    satoshi_addr2 = "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX"
+    recipient = "1Q2TWJh9n0n2Wv6NuSx79J161ExHEVDb1"
+
+    txs = [
+        DomainTransactionEvent(
+            tx_hash="f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16",
+            chain=ChainEcosystem.BITCOIN,
+            from_address=satoshi_addr1,
+            to_address=recipient,
+            value_native=10.0,
+            token_symbol="BTC",
+            fee_native=0.0001,
+            timestamp_utc=datetime(2009, 1, 12, 3, 30, 25, tzinfo=timezone.utc),
+            block_number=170,
+            co_inputs=[satoshi_addr1, satoshi_addr2],
+        )
+    ]
+
+    persona = engine.compute_persona(satoshi_addr1, txs, [])
+    assert len(persona.clustered_wallets) == 2
+    addresses = [w.address.lower() for w in persona.clustered_wallets]
+    assert satoshi_addr2.lower() in addresses
+    assert "utxo-clustered" in persona.tags
+    assert persona.confidence_score >= 0.85

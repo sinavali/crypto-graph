@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>crypto-graph — Admin Configurations</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body style="overflow-y: auto;">
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <a href="/" style="display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        <span>crypto-graph</span>
+      </a>
+      <span class="badge badge-purple">ADMIN CONTROL</span>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <a href="/" class="toolbar-btn" style="text-decoration: none;">&larr; Graph Visualizer</a>
+      <a href="/admin/config" class="toolbar-btn" style="background-color: var(--bg-card); color: var(--accent-blue); text-decoration: none;">Configurations</a>
+      <a href="/admin/personas" class="toolbar-btn" style="text-decoration: none;">Personas</a>
+      <a href="/admin/tenants" class="toolbar-btn" style="text-decoration: none;">Tenants & Users</a>
+      <form action="/auth/logout" method="POST" style="margin: 0;">
+        <button type="submit" class="toolbar-btn" style="color: var(--accent-red);">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 700;">System Configuration Engine</h1>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Dynamic runtime configuration for multi-chain RPC pools, heuristic weights, graph rendering, and security policies.</p>
+      </div>
+      <button class="btn btn-primary" onclick="saveAllConfigs()">Save All Configurations</button>
+    </div>
+
+    <div id="save-banner" style="display: none; background: rgba(16, 185, 129, 0.2); border: 1px solid var(--accent-green); color: var(--accent-green); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-weight: 600;">
+      Configurations successfully updated with immediate runtime effect!
+    </div>
+
+    <!-- Category 1: Multi-Chain RPC Pools & Resilience -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 20px;">
+      <div class="panel-header">
+        <div class="panel-title">1. Multi-Chain RPC Pools & Network Resilience</div>
+        <span class="badge badge-blue">Dynamic Rotation</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+        <div>
+          <label class="stat-label">Request Timeout (seconds)</label>
+          <input type="number" step="0.5" id="cfg-rpc-timeout" class="search-input" value="{{ configs.get('rpc.timeout_seconds', '4.0') }}">
+        </div>
+        <div>
+          <label class="stat-label">Max Retries per Query</label>
+          <input type="number" id="cfg-rpc-retries" class="search-input" value="{{ configs.get('rpc.max_retries', '3') }}">
+        </div>
+        <div>
+          <label class="stat-label">Circuit Breaker Trip Threshold (consecutive failures)</label>
+          <input type="number" id="cfg-rpc-circuit" class="search-input" value="{{ configs.get('rpc.circuit_threshold', '3') }}">
+        </div>
+        <div>
+          <label class="stat-label">Circuit Cooldown Duration (seconds)</label>
+          <input type="number" step="1.0" id="cfg-rpc-cooldown" class="search-input" value="{{ configs.get('rpc.circuit_cooldown', '15.0') }}">
+        </div>
+        <div>
+          <label class="stat-label">Force Offline / Test Replay Mode</label>
+          <select id="cfg-rpc-offline" class="search-input">
+            <option value="false" {% if configs.get('rpc.offline_mode') == 'false' %}selected{% endif %}>Live Public RPCs with Fallback</option>
+            <option value="true" {% if configs.get('rpc.offline_mode') == 'true' %}selected{% endif %}>Strict Offline Fixtures Only</option>
+          </select>
+        </div>
+        <div>
+          <label class="stat-label">Client Rate Limit (requests/sec)</label>
+          <input type="number" id="cfg-rpc-ratelimit" class="search-input" value="{{ configs.get('rpc.rate_limit_per_second', '10') }}">
+        </div>
+        <div>
+          <label class="stat-label">Fallback to Offline Fixtures on Outage</label>
+          <select id="cfg-rpc-fallback" class="search-input">
+            <option value="true" {% if configs.get('rpc.enable_fallback_fixtures') != 'false' %}selected{% endif %}>Enabled</option>
+            <option value="false" {% if configs.get('rpc.enable_fallback_fixtures') == 'false' %}selected{% endif %}>Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label class="stat-label">Custom RPC User-Agent Header</label>
+          <input type="text" id="cfg-rpc-useragent" class="search-input" value="{{ configs.get('rpc.user_agent', 'crypto-graph-engine/1.0') }}">
+        </div>
+      </div>
+
+      <!-- Live RPC Endpoint Prober -->
+      <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-blue);">Live RPC Latency & Health Tester</div>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="test-rpc-url" class="search-input" placeholder="https://cloudflare-eth.com" value="https://cloudflare-eth.com" style="flex: 1;">
+          <button class="btn btn-primary" onclick="testRpcEndpoint()" style="padding: 8px 16px;">Probe Latency</button>
+        </div>
+        <div id="rpc-test-result" style="margin-top: 8px; font-size: 0.85rem; font-family: monospace;"></div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label class="stat-label">Multi-Chain RPC Endpoints Pool (JSON format)</label>
+        <textarea id="cfg-rpc-endpoints" class="search-input" rows="6" style="font-family: monospace; font-size: 0.8rem;">{{ configs.get('rpc.endpoints', '{}') }}</textarea>
+      </div>
+    </div>
+
+    <!-- Category 2: Identity Clustering & Heuristic Weights -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 20px;">
+      <div class="panel-header">
+        <div class="panel-title" style="color: var(--accent-purple);">2. Identity Clustering & Heuristic Confidence Weights</div>
+        <span class="badge badge-purple">Bayesian Weights</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label class="stat-label">CEX Deposit Address Reuse Weight (0.0 - 1.0)</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-cex" class="search-input" value="{{ configs.get('heuristics.cex_deposit_weight', '0.85') }}">
+        </div>
+        <div>
+          <label class="stat-label">Bridge Transfer Correlation Weight (0.0 - 1.0)</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-bridge" class="search-input" value="{{ configs.get('heuristics.bridge_correlation_weight', '0.80') }}">
+        </div>
+        <div>
+          <label class="stat-label">Co-Funding & Seed Transfer Weight (0.0 - 1.0)</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-funding" class="search-input" value="{{ configs.get('heuristics.co_funding_weight', '0.70') }}">
+        </div>
+        <div>
+          <label class="stat-label">UTXO Common-Spend Multi-Input Weight (0.0 - 1.0)</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-utxo" class="search-input" value="{{ configs.get('heuristics.utxo_common_spend_weight', '0.90') }}">
+        </div>
+        <div>
+          <label class="stat-label">Max Native Value for Seed Co-Funding (ETH/BTC)</label>
+          <input type="number" step="0.1" id="cfg-h-maxval" class="search-input" value="{{ configs.get('heuristics.co_funding_max_value', '1.0') }}">
+        </div>
+        <div>
+          <label class="stat-label">Bridge Temporal Window (minutes)</label>
+          <input type="number" id="cfg-h-tempwin" class="search-input" value="{{ configs.get('heuristics.temporal_window_minutes', '30') }}">
+        </div>
+        <div>
+          <label class="stat-label">Minimum Confidence Filter Threshold</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-minconf" class="search-input" value="{{ configs.get('heuristics.min_confidence_threshold', '0.20') }}">
+        </div>
+        <div>
+          <label class="stat-label">Standalone Single-Wallet Baseline Confidence</label>
+          <input type="number" step="0.05" min="0" max="1" id="cfg-h-baseconf" class="search-input" value="{{ configs.get('heuristics.standalone_baseline_confidence', '0.50') }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- Category 3: Graph Canvas & Visualization Rules -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 20px;">
+      <div class="panel-header">
+        <div class="panel-title" style="color: var(--accent-green);">3. Graph Canvas & Visualization Rules</div>
+        <span class="badge badge-green">Cytoscape Visualizer</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label class="stat-label">Default Canvas Layout</label>
+          <select id="cfg-g-layout" class="search-input">
+            <option value="cose" {% if configs.get('graph.default_layout') == 'cose' %}selected{% endif %}>Force-Directed (CoSE)</option>
+            <option value="concentric" {% if configs.get('graph.default_layout') == 'concentric' %}selected{% endif %}>Concentric Circles</option>
+            <option value="circle" {% if configs.get('graph.default_layout') == 'circle' %}selected{% endif %}>Circular Ring</option>
+          </select>
+        </div>
+        <div>
+          <label class="stat-label">Max Nodes Rendered on Initial Load</label>
+          <input type="number" id="cfg-g-maxnodes" class="search-input" value="{{ configs.get('graph.max_nodes_render', '150') }}">
+        </div>
+        <div>
+          <label class="stat-label">Default Min Edge Volume Filter</label>
+          <input type="number" step="0.5" id="cfg-g-minvol" class="search-input" value="{{ configs.get('graph.min_edge_volume_filter', '0.0') }}">
+        </div>
+        <div>
+          <label class="stat-label">Directional Flow Animations</label>
+          <select id="cfg-g-anim" class="search-input">
+            <option value="true" {% if configs.get('graph.enable_animations') != 'false' %}selected{% endif %}>Enabled</option>
+            <option value="false" {% if configs.get('graph.enable_animations') == 'false' %}selected{% endif %}>Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label class="stat-label">Node Size Scale Multiplier</label>
+          <input type="number" step="0.1" id="cfg-g-nodescale" class="search-input" value="{{ configs.get('graph.node_size_scale', '1.0') }}">
+        </div>
+        <div>
+          <label class="stat-label">Edge Arrow Scale</label>
+          <input type="number" step="0.1" id="cfg-g-arrowscale" class="search-input" value="{{ configs.get('graph.edge_arrow_scale', '0.9') }}">
+        </div>
+        <div>
+          <label class="stat-label">Target Address Highlight Color</label>
+          <input type="text" id="cfg-g-colortarget" class="search-input" value="{{ configs.get('graph.color_target', '#38bdf8') }}">
+        </div>
+        <div>
+          <label class="stat-label">Bridge Contract Color</label>
+          <input type="text" id="cfg-g-colorbridge" class="search-input" value="{{ configs.get('graph.color_bridge', '#a855f7') }}">
+        </div>
+        <div>
+          <label class="stat-label">Exchange / Hot Wallet Color</label>
+          <input type="text" id="cfg-g-colorexchange" class="search-input" value="{{ configs.get('graph.color_exchange', '#f59e0b') }}">
+        </div>
+        <div>
+          <label class="stat-label">Counterparty EOA Color</label>
+          <input type="text" id="cfg-g-colorcounterparty" class="search-input" value="{{ configs.get('graph.color_counterparty', '#4b5563') }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- Category 4: Security & Authentication Policies -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 20px;">
+      <div class="panel-header">
+        <div class="panel-title" style="color: var(--accent-orange);">4. Security, Authentication & Built-in Captcha</div>
+        <span class="badge badge-orange">Security Policies</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label class="stat-label">Require Built-in Captcha on Auth</label>
+          <select id="cfg-sec-captcha" class="search-input">
+            <option value="true" {% if configs.get('auth.captcha_enabled') != 'false' %}selected{% endif %}>Enforced</option>
+            <option value="false" {% if configs.get('auth.captcha_enabled') == 'false' %}selected{% endif %}>Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label class="stat-label">Captcha Expiration (TTL seconds)</label>
+          <input type="number" id="cfg-sec-captchattl" class="search-input" value="{{ configs.get('auth.captcha_ttl_seconds', '300') }}">
+        </div>
+        <div>
+          <label class="stat-label">Session Duration (hours)</label>
+          <input type="number" id="cfg-sec-hours" class="search-input" value="{{ configs.get('auth.session_hours', '24') }}">
+        </div>
+        <div>
+          <label class="stat-label">Minimum Password Length</label>
+          <input type="number" id="cfg-sec-minpwd" class="search-input" value="{{ configs.get('auth.password_min_length', '6') }}">
+        </div>
+        <div>
+          <label class="stat-label">Max Failed Attempts Before Lockout</label>
+          <input type="number" id="cfg-sec-maxattempts" class="search-input" value="{{ configs.get('auth.max_failed_attempts', '5') }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- Category 5: Multi-Tenancy & Datastore Isolation -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 30px;">
+      <div class="panel-header">
+        <div class="panel-title" style="color: #38bdf8;">5. Multi-Tenancy Quotas & Data Isolation</div>
+        <span class="badge badge-blue">Tenancy Quotas</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label class="stat-label">Max Watchlist Items per Tenant</label>
+          <input type="number" id="cfg-sec-maxwatch" class="search-input" value="{{ configs.get('tenancy.max_watchlist_items', '100') }}">
+        </div>
+        <div>
+          <label class="stat-label">Max Saved Investigations per Tenant</label>
+          <input type="number" id="cfg-sec-maxinv" class="search-input" value="{{ configs.get('tenancy.max_saved_investigations', '50') }}">
+        </div>
+        <div>
+          <label class="stat-label">Max Search History Records Retained</label>
+          <input type="number" id="cfg-sec-maxhist" class="search-input" value="{{ configs.get('tenancy.max_search_history', '20') }}">
+        </div>
+        <div>
+          <label class="stat-label">Allow Public Registration</label>
+          <select id="cfg-sec-allowreg" class="search-input">
+            <option value="true" {% if configs.get('tenancy.allow_public_registration') != 'false' %}selected{% endif %}>Open Registration</option>
+            <option value="false" {% if configs.get('tenancy.allow_public_registration') == 'false' %}selected{% endif %}>Invite-Only / Admin-Created</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function saveAllConfigs() {
+      const payload = {
+        configs: {
+          "rpc.timeout_seconds": document.getElementById("cfg-rpc-timeout").value,
+          "rpc.max_retries": document.getElementById("cfg-rpc-retries").value,
+          "rpc.circuit_threshold": document.getElementById("cfg-rpc-circuit").value,
+          "rpc.circuit_cooldown": document.getElementById("cfg-rpc-cooldown").value,
+          "rpc.offline_mode": document.getElementById("cfg-rpc-offline").value,
+          "rpc.rate_limit_per_second": document.getElementById("cfg-rpc-ratelimit").value,
+          "rpc.enable_fallback_fixtures": document.getElementById("cfg-rpc-fallback").value,
+          "rpc.user_agent": document.getElementById("cfg-rpc-useragent").value,
+          "rpc.endpoints": document.getElementById("cfg-rpc-endpoints").value,
+          "heuristics.cex_deposit_weight": document.getElementById("cfg-h-cex").value,
+          "heuristics.bridge_correlation_weight": document.getElementById("cfg-h-bridge").value,
+          "heuristics.co_funding_weight": document.getElementById("cfg-h-funding").value,
+          "heuristics.utxo_common_spend_weight": document.getElementById("cfg-h-utxo").value,
+          "heuristics.co_funding_max_value": document.getElementById("cfg-h-maxval").value,
+          "heuristics.temporal_window_minutes": document.getElementById("cfg-h-tempwin").value,
+          "heuristics.min_confidence_threshold": document.getElementById("cfg-h-minconf").value,
+          "heuristics.standalone_baseline_confidence": document.getElementById("cfg-h-baseconf").value,
+          "graph.default_layout": document.getElementById("cfg-g-layout").value,
+          "graph.max_nodes_render": document.getElementById("cfg-g-maxnodes").value,
+          "graph.min_edge_volume_filter": document.getElementById("cfg-g-minvol").value,
+          "graph.enable_animations": document.getElementById("cfg-g-anim").value,
+          "graph.node_size_scale": document.getElementById("cfg-g-nodescale").value,
+          "graph.edge_arrow_scale": document.getElementById("cfg-g-arrowscale").value,
+          "graph.color_target": document.getElementById("cfg-g-colortarget").value,
+          "graph.color_bridge": document.getElementById("cfg-g-colorbridge").value,
+          "graph.color_exchange": document.getElementById("cfg-g-colorexchange").value,
+          "graph.color_counterparty": document.getElementById("cfg-g-colorcounterparty").value,
+          "auth.captcha_enabled": document.getElementById("cfg-sec-captcha").value,
+          "auth.captcha_ttl_seconds": document.getElementById("cfg-sec-captchattl").value,
+          "auth.session_hours": document.getElementById("cfg-sec-hours").value,
+          "auth.password_min_length": document.getElementById("cfg-sec-minpwd").value,
+          "auth.max_failed_attempts": document.getElementById("cfg-sec-maxattempts").value,
+          "tenancy.max_watchlist_items": document.getElementById("cfg-sec-maxwatch").value,
+          "tenancy.max_saved_investigations": document.getElementById("cfg-sec-maxinv").value,
+          "tenancy.max_search_history": document.getElementById("cfg-sec-maxhist").value,
+          "tenancy.allow_public_registration": document.getElementById("cfg-sec-allowreg").value,
+        }
+      };
+
+      try {
+        const resp = await fetch("/api/v1/admin/configs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          const banner = document.getElementById("save-banner");
+          banner.style.display = "block";
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          setTimeout(() => { banner.style.display = "none"; }, 4000);
+        } else {
+          alert("Failed to save configuration: " + resp.statusText);
+        }
+      } catch (err) {
+        alert("Error saving: " + err);
+      }
+    }
+
+    async function testRpcEndpoint() {
+      const url = document.getElementById("test-rpc-url").value.trim();
+      const resBox = document.getElementById("rpc-test-result");
+      resBox.innerHTML = "<span style='color: var(--text-muted);'>Probing endpoint...</span>";
+      try {
+        const resp = await fetch("/api/v1/admin/rpc/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: url })
+        });
+        const data = await resp.json();
+        if (data.status === "online") {
+          resBox.innerHTML = `<span style="color: var(--accent-green);">ONLINE (HTTP ${data.http_status}) - Latency: ${data.latency_ms}ms</span>`;
+        } else {
+          resBox.innerHTML = `<span style="color: var(--accent-red);">FAILED: ${data.error || 'HTTP ' + data.http_status} (${data.latency_ms}ms)</span>`;
+        }
+      } catch (e) {
+        resBox.innerHTML = `<span style="color: var(--accent-red);">Error: ${e}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>

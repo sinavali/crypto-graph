@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>crypto-graph — Tenants & User Management</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body style="overflow-y: auto;">
+  <header>
+    <div class="brand">
+      <a href="/" style="display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        <span>crypto-graph</span>
+      </a>
+      <span class="badge badge-orange">MULTI-TENANT CONTROL</span>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <a href="/" class="toolbar-btn" style="text-decoration: none;">&larr; Graph Visualizer</a>
+      <a href="/admin/config" class="toolbar-btn" style="text-decoration: none;">Configurations</a>
+      <a href="/admin/personas" class="toolbar-btn" style="text-decoration: none;">Personas</a>
+      <a href="/admin/tenants" class="toolbar-btn" style="background-color: var(--bg-card); color: var(--accent-blue); text-decoration: none;">Tenants & Users</a>
+      <form action="/auth/logout" method="POST" style="margin: 0;">
+        <button type="submit" class="toolbar-btn" style="color: var(--accent-red);">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 700;">Multi-Tenant & User Directory</h1>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Tenant isolation boundaries, investigator accounts, and access controls.</p>
+      </div>
+    </div>
+
+    <!-- Tenants Card -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 24px;">
+      <div class="panel-header">
+        <div class="panel-title">Registered Tenants (Organizations)</div>
+        <span class="badge badge-blue">{{ tenants | length }} Organizations</span>
+      </div>
+
+      <table class="data-table" style="margin-bottom: 16px;">
+        <thead>
+          <tr>
+            <th>Tenant ID</th>
+            <th>Organization Name</th>
+            <th>Created At (UTC)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tenants %}
+            <tr>
+              <td style="color: var(--accent-blue); font-family: monospace;">{{ t.tenant_id }}</td>
+              <td style="font-weight: 600;">{{ t.name }}</td>
+              <td style="color: var(--text-muted);">{{ t.created_at_utc }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Create Tenant Form -->
+      <form onsubmit="createTenant(event)" style="border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; gap: 8px;">
+        <input type="text" id="new-tenant-name" class="search-input" placeholder="New Organization / Tenant Name" required style="flex: 1;">
+        <button type="submit" class="btn btn-primary" style="white-space: nowrap;">+ Create Organization</button>
+      </form>
+    </div>
+
+    <!-- Users Card -->
+    <div class="panel-card" style="background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 24px;">
+      <div class="panel-header">
+        <div class="panel-title" style="color: var(--accent-green);">User Accounts & Roles</div>
+        <span class="badge badge-green">{{ users | length }} Users</span>
+      </div>
+
+      <table class="data-table" style="margin-bottom: 16px;">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Tenant ID</th>
+            <th>Status</th>
+            <th>Created At (UTC)</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td style="color: var(--accent-blue); font-weight: 600;">{{ u.username }}</td>
+              <td>
+                {% if u.role == 'admin' %}
+                  <span class="badge badge-purple">ADMIN</span>
+                {% else %}
+                  <span class="badge badge-blue">MEMBER</span>
+                {% endif %}
+              </td>
+              <td style="font-family: monospace; font-size: 0.8rem;">{{ u.tenant_id }}</td>
+              <td>
+                {% if u.is_active %}
+                  <span class="badge badge-green">ACTIVE</span>
+                {% else %}
+                  <span class="badge badge-red" style="background: rgba(244,63,94,0.2); color: var(--accent-red);">DISABLED</span>
+                {% endif %}
+              </td>
+              <td style="color: var(--text-muted); font-size: 0.8rem;">{{ u.created_at_utc }}</td>
+              <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                <button onclick="toggleUserRole('{{ u.user_id }}', '{{ u.role }}')" class="toolbar-btn" style="font-size: 0.7rem; padding: 3px 6px;">
+                  {% if u.role == 'admin' %}Demote to Member{% else %}Promote to Admin{% endif %}
+                </button>
+                <button onclick="toggleUserActive('{{ u.user_id }}')" class="toolbar-btn" style="font-size: 0.7rem; padding: 3px 6px; color: {% if u.is_active %}var(--accent-red){% else %}var(--accent-green){% endif %};">
+                  {% if u.is_active %}Disable{% else %}Activate{% endif %}
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Add User Form -->
+      <form onsubmit="createUser(event)" style="border-top: 1px solid var(--border-color); padding-top: 14px;">
+        <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; color: var(--accent-green);">Add User Account to Tenant</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 120px auto; gap: 8px;">
+          <select id="user-tenant-select" class="search-input" required>
+            {% for t in tenants %}
+              <option value="{{ t.tenant_id }}">{{ t.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="user-username" class="search-input" placeholder="Username" required>
+          <input type="password" id="user-password" class="search-input" placeholder="Password" required>
+          <select id="user-role-select" class="search-input">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button type="submit" class="btn btn-primary" style="background-color: var(--accent-green); white-space: nowrap;">+ Add User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    async function createTenant(e) {
+      e.preventDefault();
+      const name = document.getElementById("new-tenant-name").value.trim();
+      try {
+        const res = await fetch("/api/v1/admin/tenants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        if (res.ok) {
+          alert("Organization created!");
+          location.reload();
+        } else {
+          alert("Error: " + res.statusText);
+        }
+      } catch (err) {
+        alert("Error: " + err);
+      }
+    }
+
+    async function toggleUserActive(userId) {
+      try {
+        const res = await fetch(`/api/v1/admin/users/${userId}/toggle-active`, { method: "POST" });
+        if (res.ok) {
+          location.reload();
+        } else {
+          alert("Error: " + res.statusText);
+        }
+      } catch (err) {
+        alert("Error: " + err);
+      }
+    }
+
+    async function toggleUserRole(userId, currentRole) {
+      const newRole = currentRole === "admin" ? "member" : "admin";
+      try {
+        const res = await fetch(`/api/v1/admin/users/${userId}/role`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: newRole })
+        });
+        if (res.ok) {
+          location.reload();
+        } else {
+          alert("Error: " + res.statusText);
+        }
+      } catch (err) {
+        alert("Error: " + err);
+      }
+    }
+
+    async function createUser(e) {
+      e.preventDefault();
+      const tenant_id = document.getElementById("user-tenant-select").value;
+      const username = document.getElementById("user-username").value.trim();
+      const password = document.getElementById("user-password").value;
+      const role = document.getElementById("user-role-select").value;
+      try {
+        const res = await fetch("/api/v1/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id, username, password, role })
+        });
+        if (res.ok) {
+          alert("User created successfully!");
+          location.reload();
+        } else {
+          const errData = await res.json();
+          alert("Error: " + (errData.detail || res.statusText));
+        }
+      } catch (err) {
+        alert("Error: " + err);
+      }
+    }
+  </script>
+</body>
+</html>

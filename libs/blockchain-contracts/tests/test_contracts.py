@@ -101,6 +101,25 @@ def test_fixture_vitalik_transactions():
         assert tx.timestamp_utc.tzinfo == timezone.utc
 
 
+def test_fixture_satoshi_and_non_evm():
+    btc_txs = get_fixture_transactions(SATOSHI_BTC)
+    assert len(btc_txs) == 3
+    assert btc_txs[0].chain == ChainEcosystem.BITCOIN
+    assert btc_txs[0].token_symbol == "BTC"
+    # Verify co-inputs UTXO
+    assert len(btc_txs[1].co_inputs) == 2
+
+    sol_txs = get_fixture_transactions("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")
+    assert len(sol_txs) == 2
+    assert sol_txs[0].chain == ChainEcosystem.SOLANA
+    assert sol_txs[0].token_symbol == "SOL"
+
+    tron_txs = get_fixture_transactions("TL34sq8mSXTHi6n81qJ8Vn2X52Ssmr5x4d")
+    assert len(tron_txs) == 2
+    assert tron_txs[0].chain == ChainEcosystem.TRON
+    assert tron_txs[0].token_symbol == "TRX"
+
+
 def test_fixture_cluster_and_synthetic_transactions():
     cluster_txs = get_fixture_transactions(CLUSTER_WALLET_A)
     assert len(cluster_txs) >= 2

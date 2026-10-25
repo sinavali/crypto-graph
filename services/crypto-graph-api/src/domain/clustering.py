@@ -20,10 +20,10 @@ from libs.blockchain_contracts.models import (
 class PersonaClusteringEngine:
     """
     Applies 4 distinct heuristic strategies to discover multi-wallet clusters:
-    1. CEX Deposit Address Reuse (weight 0.85)
-    2. Cross-Chain Bridge Correlation (weight 0.80)
-    3. Co-Funding & Temporal Coordination (weight 0.70)
-    4. UTXO Common-Spend (weight 0.90)
+    1. CEX Deposit Address Reuse (default weight 0.85)
+    2. Cross-Chain Bridge Correlation (default weight 0.80)
+    3. Co-Funding & Temporal Coordination (default weight 0.70)
+    4. UTXO Common-Spend (default weight 0.90)
     """
 
     HEURISTIC_WEIGHTS = {
@@ -32,6 +32,22 @@ class PersonaClusteringEngine:
         ClusteringHeuristicType.BRIDGE_CORRELATION: 0.80,
         ClusteringHeuristicType.CO_FUNDING_TEMPORAL: 0.70,
     }
+
+    def __init__(self, config_service=None):
+        self.config_service = config_service
+
+    def get_weight(self, heuristic: ClusteringHeuristicType) -> float:
+        if self.config_service:
+            key_map = {
+                ClusteringHeuristicType.CEX_DEPOSIT_REUSE: "heuristics.cex_deposit_weight",
+                ClusteringHeuristicType.BRIDGE_CORRELATION: "heuristics.bridge_correlation_weight",
+                ClusteringHeuristicType.CO_FUNDING_TEMPORAL: "heuristics.co_funding_weight",
+                ClusteringHeuristicType.UTXO_COMMON_SPEND: "heuristics.utxo_common_spend_weight",
+            }
+            config_key = key_map.get(heuristic)
+            if config_key:
+                return self.config_service.get_float(config_key, self.HEURISTIC_WEIGHTS[heuristic])
+        return self.HEURISTIC_WEIGHTS[heuristic]
 
     def compute_persona(
         self,
@@ -70,7 +86,7 @@ class PersonaClusteringEngine:
                 evidence = AttributionEvidence(
                     heuristic=ClusteringHeuristicType.CEX_DEPOSIT_REUSE,
                     description=f"Shared centralized deposit destination '{to_addr[:10]}...' with target",
-                    confidence_weight=self.HEURISTIC_WEIGHTS[ClusteringHeuristicType.CEX_DEPOSIT_REUSE],
+                    confidence_weight=self.get_weight(ClusteringHeuristicType.CEX_DEPOSIT_REUSE),
                     related_tx_hashes=[tx.tx_hash],
                     timestamp_utc=tx.timestamp_utc,
                 )
@@ -86,7 +102,7 @@ class PersonaClusteringEngine:
                 evidence = AttributionEvidence(
                     heuristic=ClusteringHeuristicType.BRIDGE_CORRELATION,
                     description=f"Cross-chain {bridge.bridge_name} bridge transfer to destination '{dst[:10]}...' on {bridge.destination_chain.value}",
-                    confidence_weight=self.HEURISTIC_WEIGHTS[ClusteringHeuristicType.BRIDGE_CORRELATION],
+                    confidence_weight=self.get_weight(ClusteringHeuristicType.BRIDGE_CORRELATION),
                     related_tx_hashes=[bridge.source_tx_hash],
                     timestamp_utc=bridge.timestamp_utc,
                 )
@@ -96,7 +112,7 @@ class PersonaClusteringEngine:
                 evidence = AttributionEvidence(
                     heuristic=ClusteringHeuristicType.BRIDGE_CORRELATION,
                     description=f"Received cross-chain {bridge.bridge_name} bridge transfer from '{src[:10]}...' on {bridge.source_chain.value}",
-                    confidence_weight=self.HEURISTIC_WEIGHTS[ClusteringHeuristicType.BRIDGE_CORRELATION],
+                    confidence_weight=self.get_weight(ClusteringHeuristicType.BRIDGE_CORRELATION),
                     related_tx_hashes=[bridge.source_tx_hash],
                     timestamp_utc=bridge.timestamp_utc,
                 )
@@ -104,20 +120,38 @@ class PersonaClusteringEngine:
                 self._add_or_update_wallet(clustered_wallets, src, bridge.source_chain, bridge.timestamp_utc, evidence)
 
         # Heuristic 3: Co-Funding & Direct Transfers
+        max_funding = self.config_service.get_float("heuristics.co_funding_max_value", 1.0) if self.config_service else 1.0
         for tx in transactions:
             from_addr = tx.from_address.lower()
             to_addr = tx.to_address.lower()
-            # Direct reciprocal transfers with small value (< 1.5 ETH) or testing values
-            if from_addr == target_norm and to_addr != target_norm and tx.value_native <= 1.0 and not tx.is_contract_call:
+            # Direct reciprocal transfers with small value (< max_funding ETH) or testing values
+            if from_addr == target_norm and to_addr != target_norm and tx.value_native <= max_funding and not tx.is_contract_call:
                 evidence = AttributionEvidence(
                     heuristic=ClusteringHeuristicType.CO_FUNDING_TEMPORAL,
                     description=f"Direct seed funding transfer of {tx.value_native} {tx.token_symbol} to '{to_addr[:10]}...'",
-                    confidence_weight=self.HEURISTIC_WEIGHTS[ClusteringHeuristicType.CO_FUNDING_TEMPORAL],
+                    confidence_weight=self.get_weight(ClusteringHeuristicType.CO_FUNDING_TEMPORAL),
                     related_tx_hashes=[tx.tx_hash],
                     timestamp_utc=tx.timestamp_utc,
                 )
                 all_evidences.append(evidence)
                 self._add_or_update_wallet(clustered_wallets, to_addr, tx.chain, tx.timestamp_utc, evidence)
+
+        # Heuristic 4: UTXO Common-Spend (multi-input co-spend clustering)
+        for tx in transactions:
+            if tx.co_inputs and len(tx.co_inputs) > 1:
+                co_inputs_lower = [addr.lower() for addr in tx.co_inputs]
+                if target_norm in co_inputs_lower:
+                    for other_input in co_inputs_lower:
+                        if other_input != target_norm:
+                            evidence = AttributionEvidence(
+                                heuristic=ClusteringHeuristicType.UTXO_COMMON_SPEND,
+                                description=f"UTXO multi-input co-spend in tx '{tx.tx_hash[:10]}...' with '{other_input[:10]}...'",
+                                confidence_weight=self.get_weight(ClusteringHeuristicType.UTXO_COMMON_SPEND),
+                                related_tx_hashes=[tx.tx_hash],
+                                timestamp_utc=tx.timestamp_utc,
+                            )
+                            all_evidences.append(evidence)
+                            self._add_or_update_wallet(clustered_wallets, other_input, tx.chain, tx.timestamp_utc, evidence)
 
         # Calculate Bayesian Noisy-OR confidence score: 1 - product(1 - w_i)
         if all_evidences:
@@ -126,7 +160,8 @@ class PersonaClusteringEngine:
                 prob_independent_false *= (1.0 - ev.confidence_weight)
             confidence = round(min(1.0, max(0.0, 1.0 - prob_independent_false)), 4)
         else:
-            confidence = 0.50  # Single standalone wallet baseline
+            baseline = self.config_service.get_float("heuristics.standalone_baseline_confidence", 0.50) if self.config_service else 0.50
+            confidence = baseline  # Single standalone wallet baseline
 
         # Generate persona label and tags
         wallet_count = len(clustered_wallets)
@@ -137,6 +172,8 @@ class PersonaClusteringEngine:
             tags.append("cross-chain-operator")
         if any(e.heuristic == ClusteringHeuristicType.CEX_DEPOSIT_REUSE for e in all_evidences):
             tags.append("cex-clustered")
+        if any(e.heuristic == ClusteringHeuristicType.UTXO_COMMON_SPEND for e in all_evidences):
+            tags.append("utxo-clustered")
 
         persona_id = f"persona-{abs(hash(target_norm)):08x}"
         summary = (

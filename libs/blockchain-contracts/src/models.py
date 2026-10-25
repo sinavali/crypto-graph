@@ -131,6 +131,7 @@ class DomainTransactionEvent(BaseModel):
     block_number: int = 0
     is_contract_call: bool = False
     method_name: Optional[str] = None
+    co_inputs: List[str] = Field(default_factory=list)
 
     @field_validator("timestamp_utc")
     @classmethod

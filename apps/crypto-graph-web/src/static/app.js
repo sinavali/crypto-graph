@@ -1,5 +1,6 @@
 let cy = null;
 let currentAddress = "";
+let currentElements = { nodes: [], edges: [] };
 
 document.addEventListener("DOMContentLoaded", () => {
   const input = document.getElementById("address-input");
@@ -13,11 +14,19 @@ function searchCurrentAddress() {
   if (input && input.value) {
     const address = input.value.trim();
     loadAddressGraph(address);
+    // Record search in tenant history if logged in
+    fetch("/api/v1/investigations/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: address, chain: "ethereum" })
+    }).catch(() => {});
+
     // Trigger HTMX refreshes for side panels
     htmx.ajax("GET", `/partials/address-summary?address=${encodeURIComponent(address)}`, "#address-summary-container");
     htmx.ajax("GET", `/partials/persona-card?address=${encodeURIComponent(address)}`, "#persona-card-container");
     htmx.ajax("GET", `/partials/counterparties?address=${encodeURIComponent(address)}`, "#counterparties-container");
     htmx.ajax("GET", `/partials/cross-chain?address=${encodeURIComponent(address)}`, "#cross-chain-container");
+    htmx.ajax("GET", `/partials/investigation-panel`, "#investigation-container");
   }
 }
 
@@ -38,6 +47,7 @@ async function loadAddressGraph(address) {
     const resp = await fetch(`/api/graph-data?address=${encodeURIComponent(address)}`);
     if (!resp.ok) throw new Error("Failed to load graph data");
     const data = await resp.json();
+    currentElements = data.elements;
     initCytoscape(data.elements);
   } catch (err) {
     console.error("Error loading graph:", err);
@@ -158,7 +168,9 @@ function initCytoscape(elements) {
   cy.on("tap", "node", (evt) => {
     const node = evt.target;
     const data = node.data();
-    console.log("Clicked node:", data);
+    if (data.id && data.id !== currentAddress && data.node_type !== "bridge") {
+      setAddress(data.id);
+    }
   });
 }
 
@@ -179,6 +191,21 @@ function switchLayout(layoutName) {
   cy.layout({ name: layoutName, animate: true, animationDuration: 600 }).run();
 }
 
+function filterGraphByVolume(minVolumeStr) {
+  if (!cy) return;
+  const minVol = parseFloat(minVolumeStr);
+  cy.batch(() => {
+    cy.edges().forEach((edge) => {
+      const vol = parseFloat(edge.data("volume") || 0);
+      if (vol < minVol) {
+        edge.style("display", "none");
+      } else {
+        edge.style("display", "element");
+      }
+    });
+  });
+}
+
 function exportGraph() {
   if (!cy) return;
   const pngData = cy.png({ full: true, scale: 2 });
@@ -186,4 +213,105 @@ function exportGraph() {
   a.href = pngData;
   a.download = `crypto-graph-${currentAddress.slice(0, 8)}.png`;
   a.click();
+}
+
+function exportTransactionsCsv() {
+  if (!currentElements || !currentElements.edges) return;
+  let csv = "Source,Target,Volume,TxCount,IsCrossChain,BridgeName\n";
+  currentElements.edges.forEach((e) => {
+    const d = e.data;
+    csv += `"${d.source}","${d.target}",${d.volume},${d.tx_count},${d.is_cross_chain || false},"${d.bridge_name || ''}"\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `transactions-${currentAddress.slice(0, 8)}.csv`;
+  a.click();
+}
+
+function exportGraphJson() {
+  if (!currentElements) return;
+  const jsonStr = JSON.stringify({
+    elements: currentElements,
+    target_address: currentAddress,
+    exported_at_utc: new Date().toISOString()
+  }, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `graph-${currentAddress.slice(0, 8)}.json`;
+  a.click();
+}
+
+async function addCurrentToWatchlist() {
+  if (!currentAddress) return;
+  const label = prompt("Enter a label for this address:", currentAddress.slice(0, 10));
+  if (label === null) return;
+  try {
+    const res = await fetch("/api/v1/investigations/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: currentAddress, chain: "ethereum", label: label })
+    });
+    if (res.ok) {
+      htmx.ajax("GET", "/partials/investigation-panel", "#investigation-container");
+    } else {
+      alert("Failed to add to watchlist. Please make sure you are signed in.");
+    }
+  } catch (err) {
+    alert("Error: " + err);
+  }
+}
+
+async function removeFromWatchlist(address) {
+  try {
+    const res = await fetch(`/api/v1/investigations/watchlist/${address}`, { method: "DELETE" });
+    if (res.ok) {
+      htmx.ajax("GET", "/partials/investigation-panel", "#investigation-container");
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function saveCurrentInvestigation() {
+  if (!cy || !currentAddress) return;
+  const title = prompt("Enter a title for this saved investigation graph:", `Analysis of ${currentAddress.slice(0, 8)}`);
+  if (!title) return;
+  try {
+    const res = await fetch("/api/v1/investigations/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title,
+        target_address: currentAddress,
+        graph_data: currentElements
+      })
+    });
+    if (res.ok) {
+      alert("Investigation graph saved successfully!");
+      htmx.ajax("GET", "/partials/investigation-panel", "#investigation-container");
+    } else {
+      alert("Failed to save investigation. Are you signed in?");
+    }
+  } catch (err) {
+    alert("Error: " + err);
+  }
+}
+
+async function loadSavedInvestigation(invId) {
+  try {
+    const res = await fetch(`/api/v1/investigations/saved/${invId}`);
+    if (!res.ok) throw new Error("Failed to load investigation");
+    const data = await res.json();
+    setAddress(data.target_address);
+    if (data.graph_data && data.graph_data.elements) {
+      currentElements = data.graph_data.elements;
+      initCytoscape(data.graph_data.elements);
+    }
+  } catch (err) {
+    console.error("Error loading saved graph:", err);
+  }
 }
