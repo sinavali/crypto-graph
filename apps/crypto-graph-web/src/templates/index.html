@@ -49,6 +49,7 @@
     <div style="display: flex; align-items: center; gap: 12px;">
       <div class="sample-chips">
         <span>Presets:</span>
+        <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_tornado }}')" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">Tornado Mixer</a>
         <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_vitalik }}')">Vitalik (ETH)</a>
         <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_satoshi }}')">Satoshi (BTC)</a>
         <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_cluster }}')">Persona Cluster</a>
@@ -111,16 +112,24 @@
           <span>Target Address</span>
         </div>
         <div class="legend-item">
+          <div class="legend-dot" style="background-color: #ef4444;"></div>
+          <span>Privacy Mixer / OFAC</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background-color: var(--accent-orange);"></div>
+          <span>Centralized Exchange (CEX)</span>
+        </div>
+        <div class="legend-item">
           <div class="legend-dot" style="background-color: var(--accent-purple);"></div>
           <span>Cross-Chain Bridge</span>
         </div>
         <div class="legend-item">
-          <div class="legend-dot" style="background-color: var(--accent-orange);"></div>
-          <span>Exchange / Hot Wallet</span>
+          <div class="legend-dot" style="background-color: var(--accent-green);"></div>
+          <span>DeFi Protocol / Router</span>
         </div>
         <div class="legend-item">
           <div class="legend-dot" style="background-color: #4b5563;"></div>
-          <span>Counterparty EOA / Contract</span>
+          <span>Counterparty EOA</span>
         </div>
       </div>
     </div>

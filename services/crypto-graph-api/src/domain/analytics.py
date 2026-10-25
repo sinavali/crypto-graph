@@ -16,6 +16,12 @@ from libs.blockchain_contracts.models import (
     GraphTopology,
     PersonaProfile,
 )
+from .entity_registry import (
+    is_bridge_address,
+    is_exchange_address,
+    is_mixer_address,
+    lookup_known_entity,
+)
 
 
 class GraphAnalyticsEngine:
@@ -42,14 +48,38 @@ class GraphAnalyticsEngine:
             dst = tx.to_address.lower()
             total_volume += tx.value_native
 
-            # Determine node types and chains
-            if src not in node_types:
-                node_types[src] = "exchange" if "binance" in src or "coinbase" in src else "counterparty"
-            if dst not in node_types:
-                node_types[dst] = "contract" if tx.is_contract_call else "counterparty"
-
             node_chains[src] = tx.chain
             node_chains[dst] = tx.chain
+
+            # Determine entity category for src
+            if src not in node_types:
+                known_src = lookup_known_entity(src)
+                if known_src:
+                    node_types[src] = known_src.category
+                elif is_mixer_address(src):
+                    node_types[src] = "mixer"
+                elif is_exchange_address(src):
+                    node_types[src] = "exchange"
+                elif is_bridge_address(src):
+                    node_types[src] = "bridge"
+                else:
+                    node_types[src] = "counterparty"
+
+            # Determine entity category for dst
+            if dst not in node_types:
+                known_dst = lookup_known_entity(dst)
+                if known_dst:
+                    node_types[dst] = known_dst.category
+                elif is_mixer_address(dst):
+                    node_types[dst] = "mixer"
+                elif is_exchange_address(dst):
+                    node_types[dst] = "exchange"
+                elif is_bridge_address(dst):
+                    node_types[dst] = "bridge"
+                elif tx.is_contract_call:
+                    node_types[dst] = "contract"
+                else:
+                    node_types[dst] = "counterparty"
 
             edge_key = (src, dst)
             if edge_key not in edge_data:
@@ -60,6 +90,7 @@ class GraphAnalyticsEngine:
                     "last_seen": tx.timestamp_utc,
                     "is_cross_chain": False,
                     "bridge_name": None,
+                    "token_symbol": tx.token_symbol,
                 }
             e = edge_data[edge_key]
             e["tx_count"] += 1
@@ -90,6 +121,7 @@ class GraphAnalyticsEngine:
                         "last_seen": bridge.timestamp_utc,
                         "is_cross_chain": True,
                         "bridge_name": bridge.bridge_name,
+                        "token_symbol": bridge.token_symbol,
                     }
                 else:
                     e = edge_data[edge_key]
@@ -116,21 +148,44 @@ class GraphAnalyticsEngine:
             persona_id = persona.persona_id
             persona_addresses = {w.address.lower() for w in persona.clustered_wallets}
 
-        # Build GraphNode list
+        # Build GraphNode list with entity recognition & risk rating
         nodes: List[GraphNode] = []
         for node_id in G.nodes():
             chain = node_chains.get(node_id, ChainEcosystem.ETHEREUM)
             n_type = node_types.get(node_id, "counterparty")
             p_id = persona_id if node_id in persona_addresses else None
-            label = f"{node_id[:6]}...{node_id[-4:]}" if len(node_id) > 12 else node_id
 
-            tags = []
-            if node_id == target_norm:
+            known_ent = lookup_known_entity(node_id)
+            if known_ent:
+                if node_id == target_norm:
+                    label = f"{known_ent.name} (Target)"
+                else:
+                    label = known_ent.name
+                risk = known_ent.risk_level
+                base_tags = list(known_ent.tags)
+            elif node_id == target_norm:
+                label = f"Target: {node_id[:6]}...{node_id[-4:]}"
+                risk = "LOW"
+                base_tags = ["target"]
+            elif node_id.startswith("bridge_"):
+                label = node_id.replace("bridge_", "").capitalize() + " Bridge"
+                risk = "LOW"
+                base_tags = ["cross-chain-bridge"]
+            else:
+                label = f"{node_id[:6]}...{node_id[-4:]}" if len(node_id) > 12 else node_id
+                risk = "LOW"
+                base_tags = []
+
+            tags = list(base_tags)
+            if node_id == target_norm and "target" not in tags:
                 tags.append("target")
-            if p_id:
+            if p_id and "persona-clustered" not in tags:
                 tags.append("persona-clustered")
-            if n_type == "bridge":
-                tags.append("cross-chain-bridge")
+            if n_type == "mixer" and "privacy-mixer" not in tags:
+                tags.append("privacy-mixer")
+                risk = "HIGH"
+            elif n_type == "exchange" and "cex-liquidity" not in tags:
+                tags.append("cex-liquidity")
 
             nodes.append(
                 GraphNode(
@@ -143,6 +198,7 @@ class GraphAnalyticsEngine:
                     page_rank=round(page_ranks.get(node_id, 0.0), 6),
                     persona_id=p_id,
                     tags=tags,
+                    risk_level=risk,
                 )
             )
 
@@ -157,7 +213,7 @@ class GraphAnalyticsEngine:
                     target=v,
                     tx_count=d["tx_count"],
                     total_volume_native=round(d["volume"], 4),
-                    token_symbol="ETH",
+                    token_symbol=d.get("token_symbol", "ETH"),
                     is_cross_chain=d["is_cross_chain"],
                     bridge_name=d["bridge_name"],
                     first_seen_utc=d["first_seen"],
@@ -165,7 +221,7 @@ class GraphAnalyticsEngine:
                 )
             )
 
-        counterparties = len([n for n in nodes if n.node_type == "counterparty"])
+        counterparties = len([n for n in nodes if n.node_type not in ("target", "bridge")])
 
         metrics = {
             "node_count": len(nodes),
@@ -198,6 +254,7 @@ class GraphAnalyticsEngine:
                     "page_rank": n.page_rank,
                     "persona_id": n.persona_id,
                     "tags": n.tags,
+                    "risk_level": n.risk_level,
                 }
             })
 

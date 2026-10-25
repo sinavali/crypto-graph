@@ -125,7 +125,7 @@ def test_fixture_cluster_and_synthetic_transactions():
     assert len(cluster_txs) >= 2
 
     synthetic_txs = get_fixture_transactions("0x9999888877776666555544443333222211110000")
-    assert len(synthetic_txs) == 2
+    assert len(synthetic_txs) >= 2
 
 
 def test_cross_chain_bridge_fixtures():

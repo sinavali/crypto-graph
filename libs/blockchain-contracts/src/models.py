@@ -201,11 +201,12 @@ class GraphNode(BaseModel):
     address: str
     chain: ChainEcosystem
     label: str
-    node_type: str = "counterparty"  # target, counterparty, bridge, exchange, contract
+    node_type: str = "counterparty"  # target, counterparty, bridge, exchange, contract, mixer, defi, whale
     degree: int = 0
     page_rank: float = 0.0
     persona_id: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
+    risk_level: str = "LOW"
 
 
 class GraphEdge(BaseModel):

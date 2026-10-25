@@ -104,6 +104,7 @@ async def index_view(request: Request, address: Optional[str] = Query(None)):
         name="index.html",
         context={
             "default_address": initial_address,
+            "sample_tornado": "0xA160cdAB225685dA1d56aa342Ad8841c3b53f291",
             "sample_vitalik": VITALIK_ETH,
             "sample_satoshi": SATOSHI_BTC,
             "sample_cluster": CLUSTER_WALLET_A,

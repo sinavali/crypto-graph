@@ -328,3 +328,10 @@ header {
   background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
   border-radius: 4px;
 }
+
+.cfg-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.35;
+}

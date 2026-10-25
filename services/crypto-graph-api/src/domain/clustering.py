@@ -15,6 +15,12 @@ from libs.blockchain_contracts.models import (
     DomainTransactionEvent,
     PersonaProfile,
 )
+from .entity_registry import (
+    is_bridge_address,
+    is_exchange_address,
+    is_mixer_address,
+    lookup_known_entity,
+)
 
 
 class PersonaClusteringEngine:
@@ -163,28 +169,82 @@ class PersonaClusteringEngine:
             baseline = self.config_service.get_float("heuristics.standalone_baseline_confidence", 0.50) if self.config_service else 0.50
             confidence = baseline  # Single standalone wallet baseline
 
+        # Analyze connected exchanges, mixers, and bridges across all transactions
+        identified_exchanges: Set[str] = set()
+        has_mixer_interaction = False
+        identified_bridges: Set[str] = {b.bridge_name for b in bridge_events}
+
+        for tx in transactions:
+            for addr in (tx.from_address.lower(), tx.to_address.lower()):
+                ent = lookup_known_entity(addr)
+                if ent:
+                    if ent.category == "exchange":
+                        identified_exchanges.add(ent.entity)
+                    elif ent.category == "mixer":
+                        has_mixer_interaction = True
+                elif is_exchange_address(addr):
+                    identified_exchanges.add("Centralized Exchange")
+                elif is_mixer_address(addr):
+                    has_mixer_interaction = True
+
+        target_ent = lookup_known_entity(target_norm)
+        if target_ent and target_ent.category == "mixer":
+            has_mixer_interaction = True
+
         # Generate persona label and tags
         wallet_count = len(clustered_wallets)
         tags = ["active-trader"]
         if wallet_count > 1:
             tags.append("multi-wallet-persona")
-        if any(e.heuristic == ClusteringHeuristicType.BRIDGE_CORRELATION for e in all_evidences):
+        if any(e.heuristic == ClusteringHeuristicType.BRIDGE_CORRELATION for e in all_evidences) or identified_bridges:
             tags.append("cross-chain-operator")
-        if any(e.heuristic == ClusteringHeuristicType.CEX_DEPOSIT_REUSE for e in all_evidences):
+        if any(e.heuristic == ClusteringHeuristicType.CEX_DEPOSIT_REUSE for e in all_evidences) or identified_exchanges:
             tags.append("cex-clustered")
         if any(e.heuristic == ClusteringHeuristicType.UTXO_COMMON_SPEND for e in all_evidences):
             tags.append("utxo-clustered")
+        if has_mixer_interaction:
+            tags.append("privacy-mixer-associated")
+            tags.append("high-risk-profile")
+
+        for ex in sorted(identified_exchanges):
+            tags.append(f"cex:{ex.lower().replace(' ', '-')}")
+
+        # Determine persona archetype and human-readable title
+        if target_ent:
+            persona_label = f"Identified Entity: {target_ent.name}"
+            archetype = f"Verified Entity ({target_ent.entity})"
+        elif has_mixer_interaction:
+            persona_label = "Privacy Mixer & High-Risk Dispersal Entity"
+            archetype = "Privacy Mixer Operator / Laundering Ring"
+        elif identified_exchanges and wallet_count > 1:
+            persona_label = f"Multi-Wallet Persona ({', '.join(sorted(identified_exchanges))} Trader)"
+            archetype = "Multi-Account Exchange Arbitrageur"
+        elif identified_bridges:
+            persona_label = f"Cross-Chain Bridger ({', '.join(sorted(identified_bridges))})"
+            archetype = "Cross-Chain Capital Allocator"
+        else:
+            persona_label = f"Persona {target_norm[:8]}...{target_norm[-4:]}"
+            archetype = "Independent On-Chain Operator"
+
+        # Compose comprehensive intelligence summary
+        active_chains = sorted({w.chain.value for w in clustered_wallets.values()})
+        exchanges_str = ", ".join(sorted(identified_exchanges)) if identified_exchanges else "No direct CEX deposit identified"
+        bridges_str = ", ".join(sorted(identified_bridges)) if identified_bridges else "No active bridges detected"
+
+        summary = (
+            f"Archetype: {archetype}. Clusters {wallet_count} verified wallet address(es) across "
+            f"{len(active_chains)} network(s) ({', '.join(active_chains)}) with {confidence * 100:.1f}% Bayesian confidence. "
+            f"Associated CEX On/Off-Ramps: {exchanges_str}. "
+            f"Cross-Chain Routing: {bridges_str}. "
+        )
+        if has_mixer_interaction:
+            summary += "ALERT: Direct interaction with Tornado Cash / Privacy Mixer protocol identified."
 
         persona_id = f"persona-{abs(hash(target_norm)):08x}"
-        summary = (
-            f"Persona {persona_id} clusters {wallet_count} address(es) across "
-            f"{len(set(w.chain for w in clustered_wallets.values()))} network(s) "
-            f"with {confidence * 100:.1f}% confidence."
-        )
 
         return PersonaProfile(
             persona_id=persona_id,
-            label=f"Persona {persona_id[:12]}",
+            label=persona_label,
             primary_address=target_norm,
             clustered_wallets=list(clustered_wallets.values()),
             confidence_score=confidence,

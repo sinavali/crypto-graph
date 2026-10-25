@@ -42,6 +42,7 @@ Extend the crypto-graph platform to support multi-tenant isolation, user authent
 - `services/crypto-graph-api/src/domain/captcha.py`
 - `services/crypto-graph-api/src/domain/config_service.py`
 - `services/crypto-graph-api/src/domain/auth_service.py`
+- `services/crypto-graph-api/src/domain/entity_registry.py`
 - `services/crypto-graph-api/src/infrastructure/auth_router.py`
 - `services/crypto-graph-api/src/infrastructure/admin_router.py`
 - `services/crypto-graph-api/src/infrastructure/investigation_router.py`
@@ -60,8 +61,12 @@ Extend the crypto-graph platform to support multi-tenant isolation, user authent
 
 ### Modified Files
 - `libs/blockchain-contracts/src/__init__.py`
+- `libs/blockchain-contracts/src/models.py`
+- `libs/blockchain-contracts/src/fixtures.py`
+- `libs/blockchain-contracts/tests/test_contracts.py`
 - `services/crypto-graph-api/src/infrastructure/sqlite_storage.py`
 - `services/crypto-graph-api/src/infrastructure/rpc_rotator.py`
+- `services/crypto-graph-api/src/domain/analytics.py`
 - `services/crypto-graph-api/src/domain/clustering.py`
 - `services/crypto-graph-api/src/application/use_cases.py`
 - `apps/crypto-graph-web/src/app.py`

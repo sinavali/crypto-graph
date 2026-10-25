@@ -111,8 +111,51 @@ function initCytoscape(elements) {
           "background-color": "#f59e0b",
           "border-color": "#fbbf24",
           "border-width": 3,
-          "width": 46,
-          "height": 36
+          "width": 52,
+          "height": 38
+        }
+      },
+      {
+        selector: 'node[node_type = "mixer"]',
+        style: {
+          "shape": "hexagon",
+          "background-color": "#ef4444",
+          "border-color": "#f87171",
+          "border-width": 4,
+          "width": 54,
+          "height": 54,
+          "font-weight": "bold",
+          "color": "#fca5a5"
+        }
+      },
+      {
+        selector: 'node[node_type = "defi"]',
+        style: {
+          "shape": "barrel",
+          "background-color": "#10b981",
+          "border-color": "#34d399",
+          "border-width": 3,
+          "width": 50,
+          "height": 46
+        }
+      },
+      {
+        selector: 'node[node_type = "whale"]',
+        style: {
+          "shape": "star",
+          "background-color": "#ec4899",
+          "border-color": "#f472b6",
+          "border-width": 3,
+          "width": 56,
+          "height": 56
+        }
+      },
+      {
+        selector: 'node[risk_level = "HIGH"]',
+        style: {
+          "shadow-blur": 15,
+          "shadow-color": "#ef4444",
+          "shadow-opacity": 0.8
         }
       },
       {
