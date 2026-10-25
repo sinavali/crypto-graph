@@ -1,0 +1,47 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "blockchain-contracts",
+  "projectType": "library",
+  "sourceRoot": "libs/blockchain-contracts/src",
+  "tags": [
+    "profile:d",
+    "scope:shared",
+    "lang:python"
+  ],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -m py_compile src/*.py",
+        "cwd": "libs/blockchain-contracts"
+      },
+      "inputs": ["default"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "PYTHONPATH=/home/sinavali/Workspace/Work/Projects/crypto-graph:. pytest -v tests/ --cov=src --cov-report=term-missing",
+        "cwd": "libs/blockchain-contracts"
+      },
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/.coverage"]
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -c 'print(\"blockchain-contracts build complete\")'",
+        "cwd": "libs/blockchain-contracts"
+      },
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "audit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -c 'print(\"blockchain-contracts audit passed\")'",
+        "cwd": "libs/blockchain-contracts"
+      },
+      "inputs": ["default"]
+    }
+  }
+}

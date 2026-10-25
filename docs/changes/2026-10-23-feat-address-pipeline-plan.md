@@ -23,35 +23,30 @@ Establish the first real crypto-graph capability: accept a public wallet address
 ## 3. Code Surface (Targeted Symbols & Files)
 
 ### Added Files
-- `services/crypto-graph-api/src/domain/value-objects/address.py`
-- `services/crypto-graph-api/src/domain/value-objects/chain_context.py`
-- `services/crypto-graph-api/src/domain/ports/chain_adapter.py`
-- `services/crypto-graph-api/src/application/use-cases/lookup_address.py`
-- `services/crypto-graph-api/src/application/dto/address_dto.py`
-- `services/crypto-graph-api/src/infrastructure/adapters/primary/http/address_http.py`
-- `services/crypto-graph-api/src/infrastructure/adapters/secondary/chain/mock_chain_adapter.py`
-- `services/crypto-graph-api/tests/unit/value-objects/test_address.py`
-- `services/crypto-graph-api/tests/unit/value-objects/test_chain_context.py`
-- `services/crypto-graph-api/tests/unit/use-cases/test_lookup_address.py`
-- `services/crypto-graph-api/tests/integration/adapters/test_mock_chain_adapter.py`
-- `apps/crypto-graph-web/src/contracts/address_client.ts`
-- `apps/crypto-graph-web/src/features/address/AddressInput.tsx`
-- `apps/crypto-graph-web/src/features/address/AddressSummary.tsx`
-- `apps/crypto-graph-web/src/routes/address.tsx`
-- `apps/crypto-graph-web/tests/unit/features/address/test_address_input.tsx`
-- `apps/crypto-graph-web/tests/unit/features/address/test_address_summary.tsx`
-- `apps/crypto-graph-web/tests/e2e/address_flow.spec.ts`
-- `docs/changes/2026-10-23-feat-address-pipeline-plan.md`
+- `.gitignore`
+- `.cursorrules`
+- `.windsurfrules`
 - `.github/CODEOWNERS`
-- `.github/workflows/`
-- `.github/workflows/ci.yml`
+- `AGENT.md`
+- `PRODUCT_SKILL.md`
+- `scripts/`
+- `templates/`
+- `references/`
+- `libs/blockchain-contracts/`
+- `libs/blockchain_contracts`
+- `libs/__init__.py`
+- `services/crypto-graph-api/`
+- `services/crypto_graph_api`
+- `services/__init__.py`
+- `apps/crypto-graph-web/`
+- `docs/changes/2026-10-23-feat-address-pipeline-plan.md`
+- `docs/changes/2026-10-23-scaffold-initial-product-monorepo.md`
 
 ### Modified Files
 - `services/crypto-graph-api/project.json`
 - `services/crypto-graph-api/AGENT.md`
 - `apps/crypto-graph-web/project.json`
 - `apps/crypto-graph-web/AGENT.md`
-- `apps/crypto-graph-web/src/lib/api-client.ts` (if introduced; otherwise initial API client bootstrapping)
 
 ## 4. Test Surface
 

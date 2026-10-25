@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>crypto-graph — Blockchain Intelligence & Visual Graph</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/cytoscape.min.js"></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      <span>crypto-graph</span>
+      <span class="brand-badge">EP-OS</span>
+    </div>
+
+    <!-- Search input -->
+    <div class="search-container">
+      <div class="search-input-wrapper">
+        <input 
+          type="text" 
+          id="address-input" 
+          class="search-input" 
+          value="{{ default_address }}" 
+          placeholder="Enter EVM (0x...), Bitcoin (1.../bc1...), Solana, or Tron public address..."
+          onkeydown="if(event.key === 'Enter') searchCurrentAddress()"
+        >
+      </div>
+      <button class="btn btn-primary" onclick="searchCurrentAddress()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        Trace
+      </button>
+    </div>
+
+    <!-- Presets -->
+    <div class="sample-chips">
+      <span>Presets:</span>
+      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_vitalik }}')">Vitalik (ETH)</a>
+      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_satoshi }}')">Satoshi (BTC)</a>
+      <a href="javascript:void(0)" class="chip" onclick="setAddress('{{ sample_cluster }}')">Persona Cluster</a>
+    </div>
+  </header>
+
+  <!-- Dashboard -->
+  <div class="dashboard-container">
+    <!-- Visual Graph Canvas -->
+    <div class="canvas-wrapper">
+      <div class="canvas-toolbar">
+        <button class="toolbar-btn" onclick="zoomIn()">Zoom +</button>
+        <button class="toolbar-btn" onclick="zoomOut()">Zoom -</button>
+        <button class="toolbar-btn" onclick="fitGraph()">Fit View</button>
+        <button class="toolbar-btn" onclick="switchLayout('cose')">Force Layout</button>
+        <button class="toolbar-btn" onclick="switchLayout('concentric')">Concentric</button>
+        <button class="toolbar-btn" onclick="exportGraph()">Export PNG</button>
+      </div>
+
+      <div id="cy"></div>
+
+      <!-- Legend -->
+      <div class="graph-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background-color: var(--accent-blue);"></div>
+          <span>Target Address</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background-color: var(--accent-purple);"></div>
+          <span>Cross-Chain Bridge</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background-color: var(--accent-orange);"></div>
+          <span>Exchange / Hot Wallet</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background-color: #4b5563;"></div>
+          <span>Counterparty EOA / Contract</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar with HTMX Streaming Partial Panels -->
+    <div class="sidebar">
+      <!-- Address Summary Panel -->
+      <div id="address-summary-container" 
+           hx-get="/partials/address-summary?address={{ default_address }}" 
+           hx-trigger="load">
+        <div class="panel-card"><div class="stat-label">Loading address analytics...</div></div>
+      </div>
+
+      <!-- Persona Profile Card -->
+      <div id="persona-card-container" 
+           hx-get="/partials/persona-card?address={{ default_address }}" 
+           hx-trigger="load">
+        <div class="panel-card"><div class="stat-label">Clustering personas...</div></div>
+      </div>
+
+      <!-- Counterparties Panel -->
+      <div id="counterparties-container" 
+           hx-get="/partials/counterparties?address={{ default_address }}" 
+           hx-trigger="load">
+        <div class="panel-card"><div class="stat-label">Loading counterparties...</div></div>
+      </div>
+
+      <!-- Cross-Chain Flows Panel -->
+      <div id="cross-chain-container" 
+           hx-get="/partials/cross-chain?address={{ default_address }}" 
+           hx-trigger="load">
+        <div class="panel-card"><div class="stat-label">Detecting cross-chain paths...</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

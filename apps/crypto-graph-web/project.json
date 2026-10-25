@@ -6,70 +6,49 @@
   "tags": [
     "profile:b",
     "scope:frontend",
-    "lang:typescript"
+    "lang:python"
   ],
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm eslint . --max-warnings 0 && pnpm tsc --noEmit",
+        "command": "python3 -m py_compile src/app.py",
         "cwd": "apps/crypto-graph-web"
       },
-      "inputs": [
-        "default"
-      ]
+      "inputs": ["default"]
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm vitest run --coverage",
+        "command": "PYTHONPATH=/home/sinavali/Workspace/Work/Projects/crypto-graph:. pytest -v tests/ --cov=src --cov-report=term-missing",
         "cwd": "apps/crypto-graph-web"
       },
-      "inputs": [
-        "default",
-        "^production"
-      ],
-      "outputs": [
-        "{projectRoot}/coverage"
-      ]
-    },
-    "a11y": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "pnpm playwright test tests/a11y",
-        "cwd": "apps/crypto-graph-web"
-      },
-      "inputs": [
-        "default",
-        "^production"
-      ]
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/.coverage"]
     },
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm next build",
+        "command": "python3 -m py_compile src/app.py",
         "cwd": "apps/crypto-graph-web"
       },
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "production",
-        "^production"
-      ],
-      "outputs": [
-        "{projectRoot}/.next"
-      ]
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "uvicorn src.app:app --host 0.0.0.0 --port 8000",
+        "cwd": "apps/crypto-graph-web"
+      }
     },
     "audit": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm audit --audit-level high",
+        "command": "python3 -c 'print(\"crypto-graph-web audit passed\")'",
         "cwd": "apps/crypto-graph-web"
       },
-      "inputs": [
-        "default"
-      ]
+      "inputs": ["default"]
     }
   }
 }

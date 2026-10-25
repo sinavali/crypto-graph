@@ -1,7 +1,7 @@
 ---
 project_name: "crypto-graph-web"
 profile: "B"
-stack: "ts"
+stack: "python"
 scope: "frontend"
 owner: "engineering"
 tier_overrides: []
@@ -19,20 +19,20 @@ resources:
 # Project Agent Manifest: crypto-graph-web
 
 ## 1. Scope & Business Intent
-Domain responsibility and business purpose of crypto-graph-web.
+FastAPI + Jinja2 SSR + HTMX server-rendered web presentation layer with interactive Cytoscape.js canvas visualizer.
 
 ## 2. Architectural Profile & Boundaries
-- **Profile**: B
-- **Primary Inputs**: Internal domain events, API clients.
-- **Allowed Outbound Dependencies**: `libs/core-contracts`
-- **Forbidden Dependencies**: Direct cross-boundary domain couplings.
+- **Profile**: B (Web Applications - Pure Python SSR)
+- **Primary Inputs**: User HTTP requests, HTMX partial queries.
+- **Allowed Outbound Dependencies**: `services/crypto-graph-api`, `libs/blockchain-contracts`
+- **Forbidden Dependencies**: Direct database manipulation outside designated application services.
 
-## 3. Local Nx Target
+## 3. Local Nx Target Delegations
 - `nx lint crypto-graph-web`
 - `nx test crypto-graph-web`
 - `nx build crypto-graph-web`
 - `nx audit crypto-graph-web`
 
 ## 4. Test & Verification Rules
-- Real ephemeral container verification for databases.
-- Domain coverage target $\ge 95\%$, adapter coverage $\ge 80\%$.
+- Component and template rendering tests via pytest and Starlette TestClient.
+- Sub-2.5s render response with progressive graph loading.

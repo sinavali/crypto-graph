@@ -29,7 +29,7 @@ Domain responsibility and business purpose of crypto-graph-api.
 - **Allowed Outbound Dependencies**: `libs/core-contracts`
 - **Forbidden Dependencies**: Direct cross-boundary domain couplings.
 
-## 3. Local Target Delegations
+## 3. Local Nx Target
 - `nx lint crypto-graph-api`
 - `nx test crypto-graph-api`
 - `nx build crypto-graph-api`
